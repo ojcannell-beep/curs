@@ -1,0 +1,1017 @@
+add the Mixolydian in the same way as the otehr scales have been implemented, with the A scale fret numbers. use the fingering positions for the 5 positions that are most logical for learning.
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scale Shape Trainer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    /* Allow overflow so markers overlapping the nut/edge are visible */
+    #fretboard-visualization {
+      background: linear-gradient(to right, #6b4728, #855b32, #6b4728);
+      border-radius: 8px;
+      height: 200px;
+      position: relative;
+      overflow: visible;
+    }
+    #fretboard-visualization.guessing { cursor: crosshair; }
+    .fret { background-color: #c0c0c0; box-shadow: 0 0 2px rgba(0,0,0,0.4); position: absolute; z-index: 1; }
+    .string { background-color: #e0e0e0; box-shadow: 0 0 1px rgba(0,0,0,0.5); position: absolute; width: 100%; height: 2px; z-index: 2;}
+    .inlay {
+        background-color: #eaddc5;
+        border: 1px solid #c8bca7;
+        box-shadow: 0 0 5px rgba(0,0,0,0.3) inset;
+        position: absolute;
+        pointer-events: none;
+        z-index: 1;
+        transform: translate(-50%, -50%);
+    }
+
+    /* Markers */
+    .note-marker {
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: bold;
+        color: white;
+        text-shadow: 0 0 3px rgba(0,0,0,0.7);
+        transform: translate(-50%, -50%);
+        transition: all 0.18s ease-in-out;
+        z-index: 20;
+        pointer-events: none; /* so modal/board still receive events */
+        border: 2px solid rgba(0, 0, 0, 0.25);
+        box-sizing: content-box;
+    }
+    .note-neutral { background-color: #9ca3af !important; color: transparent !important; border-color: rgba(0,0,0,0.18); } /* neutral dot, no text */
+    .note-guessed { background-color: #f59e0b; border-color: white !important; pointer-events: none; }
+    .note-incorrect-guess { background-color: #dc2626 !important; border-color: white !important; }
+
+    input[type="color"] { -webkit-appearance: none; width: 40px; height: 40px; border: none; cursor: pointer; }
+    input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type="color"]::-webkit-color-swatch { border: 1px solid #a1a1aa; border-radius: 50%; }
+
+    /* Settings modal on top */
+    #settings-modal { z-index: 99999; }
+    #settings-modal .bg-white, #settings-modal .dark\:bg-gray-800 {
+      position: relative;
+      z-index: 100000;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-centered justify-center min-h-screen p-4">
+  <div class="w-full max-w-5xl mx-auto p-4 md:p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
+    <header class="flex justify-between items-center mb-6">
+        <div class="w-16"></div>
+        <div class="text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 dark:text-white">Scale Shape Trainer</h1>
+            <p id="sub-header" class="text-gray-500 dark:text-gray-400 mt-1">Fill in the intervals for the selected scale position.</p>
+        </div>
+        <div class="w-16 flex justify-end">
+             <button id="settings-btn" class="p-2 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400" aria-label="Open Settings">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066-2.573c-.94 1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </button>
+        </div>
+    </header>
+
+<div class="flex justify-center flex-wrap gap-x-6 gap-y-4 mb-6">
+  <div><p class="text-lg font-medium text-gray-500 dark:text-gray-400">Correct</p><p id="correct-score" class="text-2xl sm:text-3xl font-bold text-green-500">0</p></div>
+  <div><p class="text-lg font-medium text-gray-500 dark:text-gray-400">Incorrect</p><p id="incorrect-score" class="text-2xl sm:text-3xl font-bold text-red-500">0</p></div>
+  <div><p class="text-lg font-medium text-gray-500 dark:text-gray-400">Missed</p><p id="missed-score" class="text-2xl sm:text-3xl font-bold text-gray-500">0</p></div>
+</div>
+
+<div id="fretboard-visualization" class="relative mb-8 w-full"></div>
+
+<div id="input-container" class="text-center h-28 flex flex-col justify-center items-center gap-4 select-none">
+  <p id="prompt-area" class="text-lg sm:text-xl font-medium h-7">Select a scale and key, then press "Start Round"!</p>
+  <div id="controls-container" class="flex flex-wrap justify-center gap-3 items-center">
+     <select id="mode-select" class="w-48 border rounded p-2 dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+       <option value="fillPosition">Fill Position</option>
+       <option value="findMissing">Find Missing Interval</option>
+     </select>
+
+     <select id="scale-select" class="w-40 border rounded p-2 dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none max-h-60 overflow-y-auto"></select>
+     <select id="key-select" class="w-24 border rounded p-2 dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"></select>
+
+     <!-- only visible in findMissing mode -->
+     <select id="missing-interval-select" class="w-28 border rounded p-2 dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none hidden"></select>
+
+    <button id="start-btn" class="w-32 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Start Round</button>
+    <button id="check-btn" class="hidden w-32 bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">Check</button>
+    <button id="clear-btn" class="hidden w-32 bg-yellow-500 text-black font-bold py-2 px-4 rounded-lg hover:bg-yellow-400">Clear</button>
+    <button id="next-round-btn" class="hidden w-32 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Next Round</button>
+  </div>
+</div>
+
+  </div>
+
+  <div id="settings-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-auto">
+      <h2 class="text-2xl font-bold mb-6 text-center">Interval Color Settings & Options</h2>
+      <div id="settings-color-container" class="grid grid-cols-2 sm:grid-cols-3 gap-4"></div>
+
+      <div class="mt-6 border-t pt-4">
+        <label class="flex items-center gap-3">
+          <input id="prefer-open-checkbox" type="checkbox" class="h-4 w-4" />
+          <span class="text-sm">Prefer open-string equivalents for shapes whose lowest fretted notes start at the 12th fret</span>
+        </label>
+        <p class="text-xs text-gray-500 mt-2">When enabled, positions that are defined around the 12th fret will be shifted down an octave (12 frets) so you see the open-string / low-octave equivalent on the neck instead of the 12th fret.</p>
+      </div>
+
+      <div class="mt-6 text-center">
+        <button id="close-settings-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700">Done</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const ALL_NOTES = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
+    const STRING_TUNING_INDICES = [7, 2, 10, 5, 0, 7]; // E B G D A E (from high to low indices in ALL_NOTES)
+    const NUM_FRETS = 22;
+    const NUM_STRINGS = 6;
+
+    const NUT_WIDTH_PX = 6;
+    const FRETBOARD_TOP_MARGIN_Y = 5;
+    const FRETBOARD_STRING_SPACING_Y = (100 - 2 * FRETBOARD_TOP_MARGIN_Y) / (NUM_STRINGS - 1);
+
+    // shapes (unchanged)
+    const PENTATONIC_SHAPES_IN_A = [
+        { id: 1, name: "Position 1", frets: [{ s: 0, f: [5, 8] }, { s: 1, f: [5, 8] }, { s: 2, f: [5, 7] }, { s: 3, f: [5, 7] }, { s: 4, f: [5, 7] }, { s: 5, f: [5, 8] }]},
+        { id: 2, name: "Position 2", frets: [{ s: 0, f: [8, 10] }, { s: 1, f: [8, 10] }, { s: 2, f: [7, 9] }, { s: 3, f: [7, 10] }, { s: 4, f: [7, 10] }, { s: 5, f: [8, 10] }]},
+        { id: 3, name: "Position 3", frets: [{ s: 0, f: [10, 12] }, { s: 1, f: [10, 13] }, { s: 2, f: [9, 12] }, { s: 3, f: [10, 12] }, { s: 4, f: [10, 12] }, { s: 5, f: [10, 12] }]},
+        { id: 4, name: "Position 4", frets: [{ s: 0, f: [12, 15] }, { s: 1, f: [13, 15] }, { s: 2, f: [12, 14] }, { s: 3, f: [12, 14] }, { s: 4, f: [12, 15] }, { s: 5, f: [12, 15] }]},
+        { id: 5, name: "Position 5", frets: [{ s: 0, f: [3, 5] }, { s: 1, f: [3, 5] }, { s: 2, f: [2, 5] }, { s: 3, f: [2, 5] }, { s: 4, f: [3, 5] }, { s: 5, f: [3, 5] }] }
+    ];
+
+    const MAJOR_PENTATONIC_SHAPES_IN_A = [
+      { id: 1, name: "Position 1", frets: [ { s: 0, f: [5, 7] }, { s: 1, f: [5, 7] }, { s: 2, f: [4, 6] }, { s: 3, f: [4, 7] }, { s: 4, f: [4, 7] }, { s: 5, f: [5, 7] } ]},
+      { id: 2, name: "Position 2", frets: [ { s: 0, f: [7, 9] }, { s: 1, f: [7, 10] }, { s: 2, f: [6, 9] }, { s: 3, f: [7, 9] }, { s: 4, f: [7, 9] }, { s: 5, f: [7, 9] } ]},
+      { id: 3, name: "Position 3", frets: [ { s: 0, f: [9, 12] }, { s: 1, f: [10, 12] }, { s: 2, f: [9, 11] }, { s: 3, f: [9, 11] }, { s: 4, f: [9, 12] }, { s: 5, f: [9, 12] } ]},
+      { id: 4, name: "Position 4", frets: [ { s: 0, f: [12, 14] }, { s: 1, f: [12, 14] }, { s: 2, f: [11, 14] }, { s: 3, f: [11, 14] }, { s: 4, f: [12, 14] }, { s: 5, f: [12, 14] } ]},
+      { id: 5, name: "Position 5", frets: [ { s: 0, f: [2, 5] }, { s: 1, f: [2, 5] }, { s: 2, f: [2, 4] }, { s: 3, f: [2, 4] }, { s: 4, f: [2, 4] }, { s: 5, f: [2, 5] } ] }
+    ];
+
+    const NATURAL_MINOR_SHAPES_IN_A = [
+      {
+        id: 1,
+        name: "Position 1",
+        frets: [
+          { s: 0, f: [5, 7, 8] },
+          { s: 1, f: [5, 6, 8] },
+          { s: 2, f: [4, 5, 7] },
+          { s: 3, f: [5, 7] },
+          { s: 4, f: [5, 7, 8] },
+          { s: 5, f: [5, 7, 8] }
+        ]
+      },
+      {
+        id: 2,
+        name: "Position 2",
+        frets: [
+          { s: 0, f: [7, 8, 10] },
+          { s: 1, f: [8, 10] },
+          { s: 2, f: [7, 9, 10] },
+          { s: 3, f: [7, 9, 10] },
+          { s: 4, f: [7, 8, 10] },
+          { s: 5, f: [7, 8, 10] }
+        ]
+      },
+      {
+        id: 3,
+        name: "Position 3",
+        frets: [
+          { s: 0, f: [10, 12, 13] },
+          { s: 1, f: [10, 12, 13] },
+          { s: 2, f: [9, 10, 12] },
+          { s: 3, f: [9, 10, 12] },
+          { s: 4, f: [10, 12] },
+          { s: 5, f: [10, 12, 13] }
+        ]
+      },
+      {
+        id: 4,
+        name: "Position 4",
+        frets: [
+          { s: 0, f: [12, 13, 15] },
+          { s: 1, f: [12, 13, 15] },
+          { s: 2, f: [12, 14] },
+          { s: 3, f: [12, 14, 15] },
+          { s: 4, f: [12, 14, 15] },
+          { s: 5, f: [12, 13, 15] }
+        ]
+      },
+      {
+        id: 5,
+        name: "Position 5",
+        frets: [
+          { s: 0, f: [15, 17] },
+          { s: 1, f: [15, 17, 18] },
+          { s: 2, f: [14, 16, 17] },
+          { s: 3, f: [14, 15, 17] },
+          { s: 4, f: [14, 15, 17] },
+          { s: 5, f: [15, 17] }
+        ]
+      }
+    ];
+
+    const MAJOR_CAGED_SHAPES_IN_A = [
+      { id: 1, name: "Shape 1", frets: [
+          { s: 0, f: [4, 5, 7] },
+          { s: 1, f: [5, 7] },
+          { s: 2, f: [4, 6, 7] },
+          { s: 3, f: [4, 6, 7] },
+          { s: 4, f: [4, 5, 7] },
+          { s: 5, f: [4, 5, 7] }
+      ]},
+      { id: 2, name: "Shape 2", frets: [
+          { s: 0, f: [7, 9, 10] },
+          { s: 1, f: [7, 9, 10] },
+          { s: 2, f: [6, 7, 9] },
+          { s: 3, f: [6, 7, 9] },
+          { s: 4, f: [7, 9] },
+          { s: 5, f: [7, 9, 10] }
+      ]},
+      { id: 3, name: "Shape 3", frets: [
+          { s: 0, f: [9, 10, 12] },
+          { s: 1, f: [9, 10, 12] },
+          { s: 2, f: [9, 11] },
+          { s: 3, f: [9, 11, 12] },
+          { s: 4, f: [9, 11, 12] },
+          { s: 5, f: [9, 10, 12] }
+      ]},
+      { id: 4, name: "Shape 4", frets: [
+          { s: 0, f: [12, 14] },
+          { s: 1, f: [12, 14, 15] },
+          { s: 2, f: [11, 13, 14] },
+          { s: 3, f: [11, 12, 14] },
+          { s: 4, f: [11, 12, 14] },
+          { s: 5, f: [12, 14] }
+      ]},
+      { id: 5, name: "Shape 5", frets: [
+          { s: 0, f: [14, 16, 17] },
+          { s: 1, f: [14, 15, 17] },
+          { s: 2, f: [13, 14, 16] },
+          { s: 3, f: [14, 16] },
+          { s: 4, f: [14, 16, 17] },
+          { s: 5, f: [14, 16, 17] }
+      ]}
+    ];
+
+    const SCALES = {
+        minorPentatonic: {
+            name: 'Minor Pentatonic',
+            intervals: [0, 3, 5, 7, 10],
+            intervalNames: { 0: 'R', 3: '♭3', 5: '4', 7: '5', 10: '♭7' },
+            colors: { 'R': '#9333ea', '♭3': '#1d4ed8', '4': '#059669', '5': '#db2777', '♭7': '#e11d48' },
+            shapes: PENTATONIC_SHAPES_IN_A
+        },
+        blues: {
+            name: 'Blues',
+            intervals: [0, 3, 5, 6, 7, 10],
+            intervalNames: { 0: 'R', 3: '♭3', 5: '4', 6: '♭5', 7: '5', 10: '♭7' },
+            colors: { 'R': '#9333ea', '♭3': '#1d4ed8', '4': '#059669', '♭5': '#dc2626', '5': '#db2777', '♭7': '#e11d48' },
+            shapes: [
+                { id: 1, name: "Position 1", frets: [{ s: 0, f: [5, 8] }, { s: 1, f: [5, 8] }, { s: 2, f: [5, 7] }, { s: 3, f: [5, 7] }, { s: 4, f: [5, 6, 7] }, { s: 5, f: [5, 8] }] },
+                { id: 2, name: "Position 2", frets: [{ s: 0, f: [8, 10] }, { s: 1, f: [8, 10] }, { s: 2, f: [7, 8, 9] }, { s: 3, f: [7, 10] }, { s: 4, f: [7, 10] }, { s: 5, f: [8, 10] }] },
+                { id: 3, name: "Position 3", frets: [{ s: 0, f: [10, 12] }, { s: 1, f: [10, 13] }, { s: 2, f: [9, 12] }, { s: 3, f: [10, 12] }, { s: 4, f: [10, 12] }, { s: 5, f: [10, 12] }] },
+                { id: 4, name: "Position 4", frets: [{ s: 0, f: [12, 15] }, { s: 1, f: [13, 15] }, { s: 2, f: [12, 14] }, { s: 3, f: [12, 13, 14] }, { s: 4, f: [12, 15] }, { s: 5, f: [12, 15] }] },
+                { id: 5, name: "Position 5", frets: [{ s: 0, f: [3, 5] }, { s: 1, f: [3, 5] }, { s: 2, f: [2, 5] }, { s: 3, f: [2, 5] }, { s: 4, f: [3, 5, 6] }, { s: 5, f: [3, 5] }] }
+            ]
+        },
+        dorian: {
+            name: 'Dorian',
+            intervals: [0, 2, 3, 5, 7, 9, 10],
+            intervalNames: { 0: 'R', 2: '2', 3: '♭3', 5: '4', 7: '5', 9: '6', 10: '♭7' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '♭3': '#1d4ed8', '4': '#059669', '5': '#db2777', '6': '#ca8a04', '♭7': '#e11d48' },
+            shapes: []
+        },
+        major: {
+            name: 'Major',
+            intervals: [0, 2, 4, 5, 7, 9, 11],
+            intervalNames: { 0: 'R', 2: '2', 4: '3', 5: '4', 7: '5', 9: '6', 11: '7' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '3': '#059669', '4': '#1d4ed8', '5': '#db2777', '6': '#e11d48', '7': '#ca8a04' },
+            shapes: MAJOR_CAGED_SHAPES_IN_A
+        },
+        naturalMinor: {
+            name: 'Natural Minor',
+            intervals: [0, 2, 3, 5, 7, 8, 10],
+            intervalNames: { 0: 'R', 2: '2', 3: '♭3', 5: '4', 7: '5', 8: '♭6', 10: '♭7' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '♭3': '#1d4ed8', '4': '#059669', '5': '#db2777', '♭6': '#ca8a04', '♭7': '#e11d48' },
+            shapes: NATURAL_MINOR_SHAPES_IN_A
+        },
+        majorPentatonic: {
+            name: 'Major Pentatonic',
+            intervals: [0, 2, 4, 7, 9],
+            intervalNames: { 0: 'R', 2: '2', 4: '3', 7: '5', 9: '6' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '3': '#059669', '5': '#db2777', '6': '#e11d48' },
+            shapes: MAJOR_PENTATONIC_SHAPES_IN_A
+        },
+        naturalMinorBlues: {
+            name: 'Natural Minor/Blues Hybrid',
+            intervals: [0, 2, 3, 5, 6, 7, 8, 10],
+            intervalNames: { 0: 'R', 2: '2', 3: '♭3', 5: '4', 6: '♭5', 7: '5', 8: '♭6', 10: '♭7' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '♭3': '#1d4ed8', '4': '#059669', '♭5': '#dc2626', '5': '#db2777', '♭6': '#ca8a04', '♭7': '#e11d48' },
+            shapes: [
+              {
+                id: 1,
+                name: "Position 1",
+                frets: [
+                  { s: 0, f: [5, 7, 8] },
+                  { s: 1, f: [5, 6, 8] },
+                  { s: 2, f: [5, 7] },
+                  { s: 3, f: [5, 7] },
+                  { s: 4, f: [5, 6, 7] },
+                  { s: 5, f: [5, 7, 8] }
+                ]
+              },
+              {
+                id: 2,
+                name: "Position 2",
+                frets: [
+                  { s: 0, f: [8, 10] },
+                  { s: 1, f: [8, 10] },
+                  { s: 2, f: [7, 8, 9] },
+                  { s: 3, f: [7, 9, 10] },
+                  { s: 4, f: [7, 8, 10] },
+                  { s: 5, f: [8, 10] }
+                ]
+              },
+              {
+                id: 3,
+                name: "Position 3",
+                frets: [
+                  { s: 0, f: [10, 12] },
+                  { s: 1, f: [10, 12, 13] },
+                  { s: 2, f: [9, 10, 12] },
+                  { s: 3, f: [9, 10, 12] },
+                  { s: 4, f: [10, 12] },
+                  { s: 5, f: [10, 12,] }
+                ]
+              },
+              {
+                id: 4,
+                name: "Position 4",
+                frets: [
+                  { s: 0, f: [12, 13, 15] },
+                  { s: 1, f: [13, 15] },
+                  { s: 2, f: [12, 14] },
+                  { s: 3, f: [12, 14] },
+                  { s: 4, f: [12, 15] },
+                  { s: 5, f: [12, 13, 15] }
+                ]
+              },
+              {
+                id: 5,
+                name: "Position 5",
+                frets: [
+                  { s: 0, f: [15, 17] },
+                  { s: 1, f: [15, 17] },
+                  { s: 2, f: [14, 16, 17] },
+                  { s: 3, f: [14, 15, 17] },
+                  { s: 4, f: [15, 17] },
+                  { s: 5, f: [15, 17] }
+                ]
+              }
+            ]
+        }
+
+
+
+
+
+    };
+
+    // State
+    let fretboardMap = [], isAcceptingClicks = false, currentKey, currentScale;
+    let notesForHiddenPosition = new Set(), guessedNotes = new Set(), currentHiddenShapeName = '';
+    const recentPositionsByScale = {};
+
+    // FindMissing mode state
+    let currentMode = 'fillPosition'; // 'fillPosition' | 'findMissing'
+    let missingIntervalName = null;
+    let trueHiddenSet = new Set();
+
+    // App settings
+    const APP_SETTINGS_KEY = 'scaleTrainer_settings_v2';
+    const DEFAULT_APP_STATE = { colors: {}, preferOpenFor12: false };
+    for (const k in SCALES) { DEFAULT_APP_STATE.colors[k] = Object.assign({}, SCALES[k].colors); }
+    let appState = Object.assign({}, DEFAULT_APP_STATE);
+
+    const elements = {
+      board: document.getElementById('fretboard-visualization'),
+      promptArea: document.getElementById('prompt-area'),
+      scaleSelect: document.getElementById('scale-select'),
+      keySelect: document.getElementById('key-select'),
+      startBtn: document.getElementById('start-btn'),
+      checkBtn: document.getElementById('check-btn'),
+      clearBtn: document.getElementById('clear-btn'),
+      nextRoundBtn: document.getElementById('next-round-btn'),
+      scores: { correct: document.getElementById('correct-score'), incorrect: document.getElementById('incorrect-score'), missed: document.getElementById('missed-score') },
+      settings: { btn: document.getElementById('settings-btn'), modal: document.getElementById('settings-modal'), closeBtn: document.getElementById('close-settings-btn'), container: document.getElementById('settings-color-container') },
+      modeSelect: document.getElementById('mode-select'),
+      missingIntervalSelect: document.getElementById('missing-interval-select')
+    };
+
+    function init() {
+        loadSettings();
+        buildFretboardMap();
+        generateDorianShapes();
+        //generateNaturalMinorBluesShapes();
+        populateSelectors();
+        populateIntervalSelector();
+        drawFretboardUI();
+        addEventListeners();
+    }
+
+    function addEventListeners() {
+        elements.startBtn.addEventListener('click', startRound);
+        elements.checkBtn.addEventListener('click', () => checkGuess(false));
+        elements.clearBtn.addEventListener('click', clearGuess);
+        elements.nextRoundBtn.addEventListener('click', startRound);
+        elements.board.addEventListener('click', handleFretboardClick);
+        elements.settings.btn.addEventListener('click', openSettingsModal);
+        elements.settings.closeBtn.addEventListener('click', closeSettingsModal);
+        elements.settings.modal.addEventListener('click', (e) => { if (e.target === elements.settings.modal) closeSettingsModal(); });
+
+        elements.modeSelect.addEventListener('change', (e) => {
+            currentMode = e.target.value;
+            if (currentMode === 'findMissing') elements.missingIntervalSelect.classList.remove('hidden');
+            else elements.missingIntervalSelect.classList.add('hidden');
+        });
+
+        elements.scaleSelect.addEventListener('change', () => {
+            populateIntervalSelector();
+        });
+    }
+
+    function generateDorianShapes() {
+        const dorianNotesInA = SCALES.dorian.intervals.map(i => ALL_NOTES[i]);
+        SCALES.dorian.shapes = PENTATONIC_SHAPES_IN_A.map(pentaShape => {
+            const dorianShape = { id: pentaShape.id, name: pentaShape.name, frets: [] };
+            for (let s = 0; s < NUM_STRINGS; s++) {
+                const pentaForString = pentaShape.frets.find(ff => ff.s === s);
+                if (!pentaForString || !pentaForString.f || pentaForString.f.length === 0) continue;
+                const anchors = [...pentaForString.f].sort((a, b) => a - b);
+                const anchorCenter = Math.round((anchors[0] + anchors[anchors.length - 1]) / 2);
+
+                let windowMin = Math.max(0, anchorCenter - 2);
+                let windowMax = Math.min(NUM_FRETS, windowMin + 4);
+                if (windowMax - windowMin < 4) windowMin = Math.max(0, windowMax - 4);
+
+                const candidates = [];
+                for (let f = windowMin; f <= windowMax; f++) {
+                    if (dorianNotesInA.includes(fretboardMap[s][f])) candidates.push(f);
+                }
+                if (candidates.length === 0) continue;
+
+                let chosen = [...candidates];
+                if (chosen.length > 3) {
+                    chosen.sort((a, b) => Math.abs(a - anchorCenter) - Math.abs(b - anchorCenter) || a - b);
+                    chosen = chosen.slice(0, 3).sort((a, b) => a - b);
+                }
+                if (chosen.length === 3 && chosen[2] - chosen[0] > 4) {
+                    const pairs = [
+                        [chosen[0], chosen[1]],
+                        [chosen[1], chosen[2]],
+                        [chosen[0], chosen[2]],
+                    ].filter(p => p[1] - p[0] <= 4);
+                    if (pairs.length > 0) {
+                        pairs.sort((p, q) => {
+                            const pd = Math.abs(((p[0] + p[1]) / 2) - anchorCenter);
+                            const qd = Math.abs(((q[0] + q[1]) / 2) - anchorCenter);
+                            if (pd !== qd) return pd - qd;
+                            return (p[1] - p[0]) - (q[1] - q[0]);
+                        });
+                        chosen = pairs[0];
+                    } else {
+                        chosen = [chosen[0], chosen[1]];
+                    }
+                }
+                dorianShape.frets.push({ s, f: chosen });
+            }
+            return dorianShape;
+        });
+    }
+
+    function generateNaturalMinorBluesShapes() {
+        const naturalMinorBluesNotesInA = SCALES.naturalMinorBlues.intervals.map(i => ALL_NOTES[i]);
+        SCALES.naturalMinorBlues.shapes = NATURAL_MINOR_SHAPES_IN_A.map(minorShape => {
+            const bluesShape = { id: minorShape.id, name: minorShape.name, frets: [] };
+            for (let s = 0; s < NUM_STRINGS; s++) {
+                const minorForString = minorShape.frets.find(ff => ff.s === s);
+                if (!minorForString || !minorForString.f || minorForString.f.length === 0) continue;
+                
+                // Start with the natural minor notes for this string
+                const minorNotes = [...minorForString.f].sort((a, b) => a - b);
+                const anchorCenter = Math.round((minorNotes[0] + minorNotes[minorNotes.length - 1]) / 2);
+
+                // Find the blue note (♭5) positions within the same window
+                let windowMin = Math.max(0, anchorCenter - 2);
+                let windowMax = Math.min(NUM_FRETS, windowMin + 4);
+                if (windowMax - windowMin < 4) windowMin = Math.max(0, windowMax - 4);
+
+                const candidates = [];
+                for (let f = windowMin; f <= windowMax; f++) {
+                    if (naturalMinorBluesNotesInA.includes(fretboardMap[s][f])) candidates.push(f);
+                }
+                if (candidates.length === 0) continue;
+
+                let chosen = [...candidates];
+                if (chosen.length > 3) {
+                    chosen.sort((a, b) => Math.abs(a - anchorCenter) - Math.abs(b - anchorCenter) || a - b);
+                    chosen = chosen.slice(0, 3).sort((a, b) => a - b);
+                }
+                if (chosen.length === 3 && chosen[2] - chosen[0] > 4) {
+                    const pairs = [
+                        [chosen[0], chosen[1]],
+                        [chosen[1], chosen[2]],
+                        [chosen[0], chosen[2]],
+                    ].filter(p => p[1] - p[0] <= 4);
+                    if (pairs.length > 0) {
+                        pairs.sort((p, q) => {
+                            const pd = Math.abs(((p[0] + p[1]) / 2) - anchorCenter);
+                            const qd = Math.abs(((q[0] + q[1]) / 2) - anchorCenter);
+                            if (pd !== qd) return pd - qd;
+                            return (p[1] - p[0]) - (q[1] - q[0]);
+                        });
+                        chosen = pairs[0];
+                    } else {
+                        chosen = [chosen[0], chosen[1]];
+                    }
+                }
+                bluesShape.frets.push({ s, f: chosen });
+            }
+            return bluesShape;
+        });
+    }
+
+    function populateSelectors() {
+        elements.scaleSelect.innerHTML = '';
+        for (const scaleKey in SCALES) {
+            const option = document.createElement('option');
+            option.value = scaleKey;
+            option.textContent = SCALES[scaleKey].name;
+            elements.scaleSelect.appendChild(option);
+        }
+        elements.keySelect.innerHTML = '';
+        ALL_NOTES.forEach(note => {
+            const option = document.createElement('option');
+            option.value = note;
+            option.textContent = note;
+            elements.keySelect.appendChild(option);
+        });
+        elements.keySelect.value = 'A';
+    }
+
+    function populateIntervalSelector() {
+        const scaleKey = elements.scaleSelect.value || Object.keys(SCALES)[0];
+        const scale = SCALES[scaleKey];
+        const select = elements.missingIntervalSelect;
+        select.innerHTML = '';
+        const ordered = scale.intervals.map(i => scale.intervalNames[i]);
+        ordered.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            select.appendChild(opt);
+        });
+    }
+
+    function buildFretboardMap() {
+        fretboardMap = [];
+        for (let s = 0; s < NUM_STRINGS; s++) {
+            let stringNotes = [];
+            for (let f = 0; f <= NUM_FRETS; f++) { stringNotes.push(ALL_NOTES[(STRING_TUNING_INDICES[s] + f) % 12]); }
+            fretboardMap.push(stringNotes);
+        }
+    }
+
+    function drawFretboardUI() {
+        elements.board.innerHTML = '';
+        const fretboardHeight = 100 - (FRETBOARD_TOP_MARGIN_Y * 2);
+        for (let i = 0; i < NUM_STRINGS; i++) {
+            const s = document.createElement('div');
+            s.classList.add('string');
+            s.style.top = `${FRETBOARD_TOP_MARGIN_Y + i * FRETBOARD_STRING_SPACING_Y}%`;
+            elements.board.appendChild(s);
+        }
+        const inlayFrets = [3, 5, 7, 9, 12, 15, 17, 19, 21];
+        for (let f = 0; f <= NUM_FRETS; f++) {
+            const fretEl = document.createElement('div');
+            fretEl.classList.add('fret');
+            fretEl.style.left = `${(f / (NUM_FRETS + 1)) * 100}%`;
+            if (f === 0) { fretEl.style.width = `${NUT_WIDTH_PX}px`; fretEl.style.height = '100%'; fretEl.style.top = '0'; }
+            else { fretEl.style.width = '2px'; fretEl.style.top = `${FRETBOARD_TOP_MARGIN_Y}%`; fretEl.style.height = `${fretboardHeight}%`; }
+            elements.board.appendChild(fretEl);
+            if (inlayFrets.includes(f)) {
+                const inlay = document.createElement('div');
+                inlay.classList.add('inlay', 'rounded-full');
+                const xPos = `${((f - 0.5) / (NUM_FRETS + 1)) * 100}%`;
+                const size = '15px';
+                inlay.style.left = xPos;
+                inlay.style.width = size;
+                inlay.style.height = size;
+                if (f === 12) {
+                    const inlay2 = inlay.cloneNode(true);
+                    inlay.style.top = `${FRETBOARD_TOP_MARGIN_Y + fretboardHeight * 0.25}%`;
+                    inlay2.style.top = `${FRETBOARD_TOP_MARGIN_Y + fretboardHeight * 0.75}%`;
+                    elements.board.appendChild(inlay2);
+                } else {
+                    inlay.style.top = `${FRETBOARD_TOP_MARGIN_Y + fretboardHeight / 2}%`;
+                }
+                elements.board.appendChild(inlay);
+            }
+        }
+    }
+
+    function clearAllMarkers() { elements.board.querySelectorAll('.note-marker').forEach(n => n.remove()); }
+
+    function getIntervalName(noteName, rootNoteName) {
+        const rootIndex = ALL_NOTES.indexOf(rootNoteName);
+        const noteIndex = ALL_NOTES.indexOf(noteName);
+        const semitoneDiff = (noteIndex - rootIndex + 12) % 12;
+        return currentScale.intervalNames[semitoneDiff] || '?';
+    }
+
+    // drawMarker now supports: showText, useCustomColor, neutral (uniform grey), className, isMissed
+    function drawMarker(s, f, options = {}) {
+        const marker = document.createElement('div');
+        marker.dataset.key = `${s},${f}`;
+        marker.className = 'note-marker';
+        if (options.className) marker.classList.add(options.className);
+
+        const noteName = fretboardMap[s][f];
+        const intervalName = currentScale ? (currentScale.intervalNames[(ALL_NOTES.indexOf(noteName) - ALL_NOTES.indexOf(currentKey) + 12) % 12] || '?') : '?';
+
+        if (options.showText) marker.textContent = intervalName;
+
+        if (options.neutral) {
+            marker.classList.add('note-neutral');
+        } else {
+            const intervalColor = currentScale ? (currentScale.colors[intervalName] || '#333') : '#333';
+            if (options.useCustomColor) marker.style.backgroundColor = intervalColor;
+        }
+
+        if (options.isMissed) {
+            marker.style.backgroundColor = 'transparent';
+            marker.style.borderColor = (currentScale && currentScale.colors[intervalName]) ? currentScale.colors[intervalName] : '#333';
+            marker.style.borderStyle = 'dashed';
+            marker.style.color = (currentScale && currentScale.colors[intervalName]) ? currentScale.colors[intervalName] : '#333';
+        }
+
+        if (f === 0) {
+            marker.style.left = `${NUT_WIDTH_PX / 2}px`;
+            marker.style.transform = 'translate(-50%, -50%)';
+        } else {
+            marker.style.left = `${((f - 0.5) / (NUM_FRETS + 1)) * 100}%`;
+            marker.style.transform = 'translate(-50%, -50%)';
+        }
+        marker.style.top = `${FRETBOARD_TOP_MARGIN_Y + s * FRETBOARD_STRING_SPACING_Y}%`;
+        elements.board.appendChild(marker);
+    }
+
+    function getNotesForPosition(rootNote, positionShape) {
+        const notesInPosition = new Set();
+        const keyOffset = ALL_NOTES.indexOf(rootNote) - ALL_NOTES.indexOf('A');
+        const OCTAVE = 12;
+
+        const allFretsForKey = positionShape.frets.flatMap(stringData =>
+            stringData.f.map(fretInA => fretInA + keyOffset)
+        );
+
+        if (allFretsForKey.length === 0) return notesInPosition;
+
+        const minFret = Math.min(...allFretsForKey);
+        const maxFret = Math.max(...allFretsForKey);
+
+        let desiredShift = 0;
+        if (appState.preferOpenFor12 && minFret >= 12) {
+            desiredShift = -OCTAVE;
+        }
+
+        if (maxFret + desiredShift > NUM_FRETS) {
+            const extra = Math.ceil((maxFret + desiredShift - NUM_FRETS) / OCTAVE);
+            desiredShift -= extra * OCTAVE;
+        } else if (minFret + desiredShift < 0) {
+            const extra = Math.ceil((Math.abs(minFret + desiredShift) / OCTAVE));
+            desiredShift += extra * OCTAVE;
+        }
+
+        positionShape.frets.forEach(stringData => {
+            stringData.f.forEach(fretInA => {
+                const finalFret = fretInA + keyOffset + desiredShift;
+                if (finalFret >= 0 && finalFret <= NUM_FRETS) {
+                    notesInPosition.add(`${stringData.s},${finalFret}`);
+                }
+            });
+        });
+
+        return notesInPosition;
+    }
+
+    // ---- Round flows ----
+    function startRound() {
+        if (elements.modeSelect.value === 'findMissing') startFindMissingRound();
+        else startFillPositionRound();
+    }
+
+    function startFillPositionRound() {
+        clearAllMarkers(); guessedNotes.clear(); notesForHiddenPosition.clear(); trueHiddenSet.clear();
+        Object.values(elements.scores).forEach(el => el.textContent = '0');
+
+        const scaleKey = elements.scaleSelect.value;
+        currentKey = elements.keySelect.value;
+        currentScale = SCALES[scaleKey];
+
+        const recent = recentPositionsByScale[scaleKey] || [];
+        const pool = currentScale.shapes.filter(sh => !recent.includes(sh.id));
+        const candidates = pool.length > 0 ? pool : currentScale.shapes;
+        const hiddenShape = candidates[Math.floor(Math.random() * candidates.length)];
+        currentHiddenShapeName = hiddenShape.name;
+        recentPositionsByScale[scaleKey] = [...recent, hiddenShape.id].slice(-3);
+
+        notesForHiddenPosition = getNotesForPosition(currentKey, hiddenShape);
+
+        notesForHiddenPosition.forEach(noteKey => {
+            const [s, f] = noteKey.split(',').map(Number);
+            if (fretboardMap[s][f] === currentKey) { drawMarker(s, f, { useCustomColor: true, showText: true }); }
+        });
+
+        elements.promptArea.textContent = `Flesh out ${currentScale.name} - ${hiddenShape.name} in ${currentKey}`;
+        isAcceptingClicks = true; elements.board.classList.add('guessing');
+        elements.startBtn.classList.add('hidden');
+        [elements.keySelect, elements.scaleSelect, elements.modeSelect].forEach(el => el.disabled = true);
+        elements.checkBtn.classList.remove('hidden'); elements.clearBtn.classList.remove('hidden'); elements.nextRoundBtn.classList.add('hidden');
+    }
+
+    function startFindMissingRound() {
+        clearAllMarkers(); guessedNotes.clear(); trueHiddenSet.clear();
+        Object.values(elements.scores).forEach(el => el.textContent = '0');
+
+        const scaleKey = elements.scaleSelect.value;
+        currentKey = elements.keySelect.value;
+        currentScale = SCALES[scaleKey];
+        missingIntervalName = elements.missingIntervalSelect.value;
+
+        // Combine all shapes' notes
+        const combined = new Set();
+        currentScale.shapes.forEach(shape => {
+            getNotesForPosition(currentKey, shape).forEach(n => combined.add(n));
+        });
+
+        // For each combined fret: hide the ones matching missingIntervalName; draw neutral dots for others
+        combined.forEach(noteKey => {
+            const [s, f] = noteKey.split(',').map(Number);
+            const noteName = fretboardMap[s][f];
+            const intervalName = getIntervalName(noteName, currentKey);
+            if (intervalName === missingIntervalName) {
+                trueHiddenSet.add(noteKey);
+                // do not draw — it's hidden until check
+            } else {
+                // draw neutral dot (no text, same color)
+                drawMarker(s, f, { neutral: true, showText: false });
+            }
+        });
+
+        elements.promptArea.textContent = `Find all ${missingIntervalName} notes for ${currentScale.name} across the positions in ${currentKey}`;
+        isAcceptingClicks = true; elements.board.classList.add('guessing');
+        elements.startBtn.classList.add('hidden');
+        [elements.keySelect, elements.scaleSelect, elements.modeSelect, elements.missingIntervalSelect].forEach(el => el.disabled = true);
+        elements.checkBtn.classList.remove('hidden'); elements.clearBtn.classList.remove('hidden'); elements.nextRoundBtn.classList.add('hidden');
+
+        // If there are zero hidden locations (unlikely), immediately reveal and end
+        if (trueHiddenSet.size === 0) {
+            elements.promptArea.textContent = `No ${missingIntervalName} positions found on the fretboard for this selection.`;
+            elements.checkBtn.classList.add('hidden'); elements.clearBtn.classList.add('hidden'); elements.nextRoundBtn.classList.remove('hidden');
+            isAcceptingClicks = false;
+        }
+    }
+
+    function handleFretboardClick(e) {
+        if (!isAcceptingClicks) return;
+        const rect = elements.board.getBoundingClientRect();
+        const yPos = e.clientY - rect.top, xPos = e.clientX - rect.left;
+        const stringIndex = Math.floor((yPos / rect.height) * NUM_STRINGS);
+        const relative = (xPos / rect.width) * (NUM_FRETS + 1);
+        const fretIndex = Math.round(relative);
+        if (stringIndex < 0 || stringIndex >= 6 || fretIndex < 0 || fretIndex > NUM_FRETS) return;
+        const noteKey = `${stringIndex},${fretIndex}`;
+        const existingMarker = elements.board.querySelector(`.note-marker[data-key="${noteKey}"]`);
+        // allow guessing overlay even if neutral marker underneath exists
+        const guessMarker = elements.board.querySelector(`.note-marker.note-guessed[data-key="${noteKey}"]`);
+        if (guessMarker) {
+            guessedNotes.delete(noteKey);
+            guessMarker.remove();
+        } else {
+            // Add a guessed marker overlay (doesn't remove the neutral marker underneath)
+            drawMarker(stringIndex, fretIndex, { className: 'note-guessed', showText: false });
+            guessedNotes.add(noteKey);
+        }
+
+        // Auto-advance check for findMissing: if user has guessed all trueHiddenSet items, trigger check and auto-start next round
+        if (elements.modeSelect.value === 'findMissing' && trueHiddenSet.size > 0) {
+            const correctGuesses = [...guessedNotes].filter(n => trueHiddenSet.has(n)).length;
+            if (correctGuesses === trueHiddenSet.size) {
+                // All found — auto-check immediately
+                checkGuess(true);
+                // Start next round after a short pause so user sees results (0.9s)
+                setTimeout(() => {
+                    startRound();
+                }, 900);
+            }
+        }
+    }
+
+    function clearGuess() {
+        if (!isAcceptingClicks) return;
+        guessedNotes.clear();
+        elements.board.querySelectorAll('.note-guessed').forEach(m => m.remove());
+    }
+
+    // checkGuess(forceReveal) - forceReveal used when auto-invoked; behavior same as manual
+    function checkGuess(forceReveal = false) {
+        isAcceptingClicks = false;
+        elements.board.classList.remove('guessing');
+
+        // ensure current values set (in case)
+        currentScale = SCALES[elements.scaleSelect.value];
+        currentKey = elements.keySelect.value;
+
+        let correct = 0, incorrect = 0, missed = 0;
+        const mode = elements.modeSelect.value;
+
+        if (mode === 'findMissing') {
+            // Build the combined set of all shape notes
+            const combined = new Set();
+            currentScale.shapes.forEach(shape => {
+                getNotesForPosition(currentKey, shape).forEach(n => combined.add(n));
+            });
+
+            // Count correct/incorrect guesses
+            guessedNotes.forEach(n => {
+                if (trueHiddenSet.has(n)) correct++;
+                else incorrect++;
+            });
+            missed = Math.max(0, trueHiddenSet.size - correct);
+
+            // Reveal: draw every interval in its proper color/text
+            clearAllMarkers();
+            combined.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                drawMarker(s, f, { useCustomColor: true, showText: true });
+            });
+
+            // Overlay incorrect guesses in red so player sees mistakes
+            guessedNotes.forEach(n => {
+                if (!trueHiddenSet.has(n)) {
+                    const [s, f] = n.split(',').map(Number);
+                    drawMarker(s, f, { className: 'note-incorrect-guess', showText: true });
+                }
+            });
+        } else {
+            // fillPosition: evaluate guesses vs notesForHiddenPosition, then reveal all intervals in that position
+            correct = 0; incorrect = 0; missed = 0;
+            guessedNotes.forEach(noteKey => {
+                if (notesForHiddenPosition.has(noteKey)) correct++;
+                else incorrect++;
+            });
+            notesForHiddenPosition.forEach(noteKey => {
+                if (!guessedNotes.has(noteKey)) missed++;
+            });
+
+            // Reveal: clear board and show the position's intervals (colored)
+            clearAllMarkers();
+            notesForHiddenPosition.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                drawMarker(s, f, { useCustomColor: true, showText: true });
+            });
+
+            // Overlay incorrect guesses in red
+            guessedNotes.forEach(n => {
+                if (!notesForHiddenPosition.has(n)) {
+                    const [s, f] = n.split(',').map(Number);
+                    drawMarker(s, f, { className: 'note-incorrect-guess', showText: true });
+                }
+            });
+        }
+
+        elements.scores.correct.textContent = correct;
+        elements.scores.incorrect.textContent = incorrect;
+        elements.scores.missed.textContent = missed;
+
+        elements.promptArea.textContent = (incorrect === 0 && missed === 0)
+            ? `Perfect! You found all intervals for ${currentHiddenShapeName} of ${currentScale.name}!`
+            : `Here are your results for ${currentHiddenShapeName} of ${currentScale.name}. Check the fretboard.`;
+        elements.checkBtn.classList.add('hidden'); elements.clearBtn.classList.add('hidden'); elements.nextRoundBtn.classList.remove('hidden');
+        [elements.keySelect, elements.scaleSelect, elements.modeSelect, elements.missingIntervalSelect].forEach(el => el.disabled = false);
+        elements.startBtn.classList.remove('hidden');
+
+        // Clear guessedNotes so next round starts fresh (we keep drawn results on the board)
+        guessedNotes.clear();
+    }
+
+    function openSettingsModal() {
+        const scaleKey = elements.scaleSelect.value;
+        const scaleData = SCALES[scaleKey];
+        elements.settings.container.innerHTML = '';
+        Object.values(scaleData.intervalNames).forEach(intervalText => {
+            const currentColor = scaleData.colors[intervalText];
+            const wrapper = document.createElement('div'); wrapper.className = 'flex flex-col items-center justify-center';
+            const label = document.createElement('label'); label.textContent = intervalText; label.className = 'font-medium mb-1'; label.htmlFor = `color-${scaleKey}-${intervalText}`;
+            const colorInput = document.createElement('input'); colorInput.type = 'color'; colorInput.id = `color-${scaleKey}-${intervalText}`; colorInput.dataset.scale = scaleKey; colorInput.dataset.interval = intervalText; colorInput.value = currentColor;
+            wrapper.appendChild(label); wrapper.appendChild(colorInput);
+            elements.settings.container.appendChild(wrapper);
+        });
+
+        const checkbox = document.getElementById('prefer-open-checkbox');
+        if (checkbox) checkbox.checked = !!appState.preferOpenFor12;
+
+        elements.settings.modal.classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+        elements.settings.container.querySelectorAll('input[type="color"]').forEach(input => {
+            const { scale, interval } = input.dataset;
+            if (SCALES[scale]) {
+                SCALES[scale].colors[interval] = input.value;
+                if (!appState.colors[scale]) appState.colors[scale] = {};
+                appState.colors[scale][interval] = input.value;
+            }
+        });
+        const checkbox = document.getElementById('prefer-open-checkbox');
+        appState.preferOpenFor12 = !!(checkbox && checkbox.checked);
+        saveSettings();
+        // redraw board depending on mode/status
+        if ((notesForHiddenPosition.size > 0 || trueHiddenSet.size > 0) && !isAcceptingClicks) { redrawBoardAfterCheck(); }
+        elements.settings.modal.classList.add('hidden');
+    }
+
+    function redrawBoardAfterCheck() {
+        clearAllMarkers();
+        if (elements.modeSelect.value === 'findMissing') {
+            // redraw combined colored markers (we keep hidden ones hidden)
+            const scaleKey = elements.scaleSelect.value;
+            currentScale = SCALES[scaleKey];
+            const combined = new Set();
+            currentScale.shapes.forEach(shape => {
+                getNotesForPosition(elements.keySelect.value, shape).forEach(n => combined.add(n));
+            });
+            combined.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                const noteName = fretboardMap[s][f];
+                const intervalName = getIntervalName(noteName, elements.keySelect.value);
+                if (intervalName === missingIntervalName) {
+                    // keep hidden
+                } else {
+                    drawMarker(s, f, { neutral: true, showText: false });
+                }
+            });
+        } else {
+            notesForHiddenPosition.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                drawMarker(s, f, { useCustomColor: true, showText: true });
+            });
+        }
+    }
+
+    function saveSettings() {
+        for (const scaleKey in SCALES) {
+            if (!appState.colors[scaleKey]) appState.colors[scaleKey] = {};
+            Object.assign(appState.colors[scaleKey], SCALES[scaleKey].colors);
+        }
+        localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(appState));
+    }
+
+    function loadSettings() {
+        const saved = localStorage.getItem(APP_SETTINGS_KEY);
+        if (!saved) return;
+        try {
+            const parsed = JSON.parse(saved);
+            if (parsed.colors) {
+                for (const scaleKey in parsed.colors) {
+                    if (SCALES[scaleKey]) {
+                        Object.assign(SCALES[scaleKey].colors, parsed.colors[scaleKey]);
+                    }
+                }
+            }
+            appState.preferOpenFor12 = !!parsed.preferOpenFor12;
+            appState.colors = parsed.colors || appState.colors;
+        } catch (err) {
+            console.warn('Failed to load saved settings:', err);
+        }
+    }
+
+    init();
+});
+</script>
+</body>
+</html>
