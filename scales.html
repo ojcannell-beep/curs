@@ -55,6 +55,22 @@ add the Mixolydian in the same way as the otehr scales have been implemented, wi
     .note-guessed { background-color: #f59e0b; border-color: white !important; pointer-events: none; }
     .note-incorrect-guess { background-color: #dc2626 !important; border-color: white !important; }
 
+    /* Bend target selection backgrounds */
+    .bend-bg {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      transform: translate(-50%, -50%);
+      z-index: 15; /* behind .note-marker (z-index: 20) */
+      pointer-events: none;
+      border: 1px solid rgba(0,0,0,0.15);
+      box-sizing: border-box;
+    }
+    .bend-select-bg { background-color: #d1d5db; /* gray-300 */ }
+    .bend-correct-bg { background-color: #ffffff; border-color: rgba(0,0,0,0.25); }
+    .bend-incorrect-bg { background-color: #fee2e2; /* red-100 */ border-color: #fecaca; }
+
     input[type="color"] { -webkit-appearance: none; width: 40px; height: 40px; border: none; cursor: pointer; }
     input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
     input[type="color"]::-webkit-color-swatch { border: 1px solid #a1a1aa; border-radius: 50%; }
@@ -96,6 +112,7 @@ add the Mixolydian in the same way as the otehr scales have been implemented, wi
      <select id="mode-select" class="w-48 border rounded p-2 dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none">
        <option value="fillPosition">Fill Position</option>
        <option value="findMissing">Find Missing Interval</option>
+       <option value="pentBend">Minor Pentatonic: Bend Targets</option>
      </select>
 
      <select id="scale-select" class="w-40 border rounded p-2 dark:bg-gray-700 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none max-h-60 overflow-y-auto"></select>
@@ -964,6 +981,25 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.board.appendChild(marker);
     }
 
+    function drawBendBackground(s, f, className) {
+        const bg = document.createElement('div');
+        bg.className = `bend-bg ${className}`;
+        bg.dataset.key = `${s},${f}`;
+        if (f === 0) {
+            bg.style.left = `${NUT_WIDTH_PX / 2}px`;
+            bg.style.transform = 'translate(-50%, -50%)';
+        } else {
+            bg.style.left = `${((f - 0.5) / (NUM_FRETS + 1)) * 100}%`;
+            bg.style.transform = 'translate(-50%, -50%)';
+        }
+        bg.style.top = `${FRETBOARD_TOP_MARGIN_Y + s * FRETBOARD_STRING_SPACING_Y}%`;
+        elements.board.appendChild(bg);
+        return bg;
+    }
+
+    // Track bend mode selections
+    let bendSelected = new Set();
+
     function getNotesForPosition(rootNote, positionShape) {
         const notesInPosition = new Set();
         const keyOffset = ALL_NOTES.indexOf(rootNote) - ALL_NOTES.indexOf('A');
@@ -1006,6 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- Round flows ----
     function startRound() {
         if (elements.modeSelect.value === 'findMissing') startFindMissingRound();
+        else if (elements.modeSelect.value === 'pentBend') startPentBendRound();
         else startFillPositionRound();
     }
 
@@ -1081,6 +1118,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function startPentBendRound() {
+        clearAllMarkers(); guessedNotes.clear(); notesForHiddenPosition.clear(); trueHiddenSet.clear();
+        bendSelected.clear();
+        Object.values(elements.scores).forEach(el => el.textContent = '0');
+
+        // Force scale to minor pentatonic for this mode
+        const scaleKey = 'minorPentatonic';
+        elements.scaleSelect.value = scaleKey;
+        currentScale = SCALES[scaleKey];
+        currentKey = elements.keySelect.value;
+
+        // Pick a random position
+        const recent = recentPositionsByScale['pentBend'] || [];
+        const pool = currentScale.shapes.filter(sh => !recent.includes(sh.id));
+        const candidates = pool.length > 0 ? pool : currentScale.shapes;
+        const hiddenShape = candidates[Math.floor(Math.random() * candidates.length)];
+        currentHiddenShapeName = hiddenShape.name;
+        recentPositionsByScale['pentBend'] = [...recent, hiddenShape.id].slice(-3);
+
+        // Get all notes and draw them immediately with interval labels/colors
+        const positionSet = getNotesForPosition(currentKey, hiddenShape);
+        notesForHiddenPosition = positionSet;
+        positionSet.forEach(noteKey => {
+            const [s, f] = noteKey.split(',').map(Number);
+            drawMarker(s, f, { useCustomColor: true, showText: true });
+        });
+
+        elements.promptArea.textContent = `Mark full-step bend targets (4, ♭7, ♭3) in ${currentKey} Minor Pentatonic - ${hiddenShape.name}`;
+        isAcceptingClicks = true; elements.board.classList.add('guessing');
+        elements.startBtn.classList.add('hidden');
+        // lock picker controls except key (allow key change if desired before starting next round)
+        [elements.scaleSelect, elements.modeSelect, elements.missingIntervalSelect].forEach(el => el.disabled = true);
+        // keep keySelect enabled so user can change key next round if they want
+        elements.checkBtn.classList.remove('hidden'); elements.clearBtn.classList.remove('hidden'); elements.nextRoundBtn.classList.add('hidden');
+    }
+
     function handleFretboardClick(e) {
         if (!isAcceptingClicks) return;
         const rect = elements.board.getBoundingClientRect();
@@ -1090,8 +1163,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const fretIndex = Math.round(relative);
         if (stringIndex < 0 || stringIndex >= 6 || fretIndex < 0 || fretIndex > NUM_FRETS) return;
         const noteKey = `${stringIndex},${fretIndex}`;
+
+        if (elements.modeSelect.value === 'pentBend') {
+            // Only allow selecting notes that are in the shown position
+            if (!notesForHiddenPosition.has(noteKey)) return;
+            const existing = elements.board.querySelector(`.bend-bg[data-key="${noteKey}"]`);
+            if (existing) {
+                existing.remove();
+                bendSelected.delete(noteKey);
+            } else {
+                drawBendBackground(stringIndex, fretIndex, 'bend-select-bg');
+                bendSelected.add(noteKey);
+            }
+            return;
+        }
+
         const existingMarker = elements.board.querySelector(`.note-marker[data-key="${noteKey}"]`);
-        // allow guessing overlay even if neutral marker underneath exists
         const guessMarker = elements.board.querySelector(`.note-marker.note-guessed[data-key="${noteKey}"]`);
         if (guessMarker) {
             guessedNotes.delete(noteKey);
@@ -1102,22 +1189,22 @@ document.addEventListener('DOMContentLoaded', () => {
             guessedNotes.add(noteKey);
         }
 
-        // Auto-advance check for findMissing: if user has guessed all trueHiddenSet items, trigger check and auto-start next round
         if (elements.modeSelect.value === 'findMissing' && trueHiddenSet.size > 0) {
             const correctGuesses = [...guessedNotes].filter(n => trueHiddenSet.has(n)).length;
             if (correctGuesses === trueHiddenSet.size) {
-                // All found — auto-check immediately
                 checkGuess(true);
-                // Start next round after a short pause so user sees results (0.9s)
-                setTimeout(() => {
-                    startRound();
-                }, 900);
+                setTimeout(() => { startRound(); }, 900);
             }
         }
     }
 
     function clearGuess() {
         if (!isAcceptingClicks) return;
+        if (elements.modeSelect.value === 'pentBend') {
+            bendSelected.clear();
+            elements.board.querySelectorAll('.bend-bg').forEach(el => el.remove());
+            return;
+        }
         guessedNotes.clear();
         elements.board.querySelectorAll('.note-guessed').forEach(m => m.remove());
     }
@@ -1127,14 +1214,41 @@ document.addEventListener('DOMContentLoaded', () => {
         isAcceptingClicks = false;
         elements.board.classList.remove('guessing');
 
-        // ensure current values set (in case)
         currentScale = SCALES[elements.scaleSelect.value];
         currentKey = elements.keySelect.value;
 
         let correct = 0, incorrect = 0, missed = 0;
         const mode = elements.modeSelect.value;
 
-        if (mode === 'findMissing') {
+        if (mode === 'pentBend') {
+            // Determine which intervals qualify for bending: 4, ♭7, ♭3
+            const qualifying = new Set(['4', '♭7', '♭3']);
+            // Evaluate selections
+            bendSelected.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                const intervalName = getIntervalName(fretboardMap[s][f], currentKey);
+                if (qualifying.has(intervalName)) correct++; else incorrect++;
+            });
+            // Compute missed = qualifying notes in this position - correct chosen
+            notesForHiddenPosition.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                const intervalName = getIntervalName(fretboardMap[s][f], currentKey);
+                if (qualifying.has(intervalName) && !bendSelected.has(noteKey)) missed++;
+            });
+
+            // Visual feedback: set selected backgrounds to white if correct, red if incorrect
+            elements.board.querySelectorAll('.bend-bg').forEach(bg => bg.remove());
+            notesForHiddenPosition.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                const intervalName = getIntervalName(fretboardMap[s][f], currentKey);
+                if (bendSelected.has(noteKey)) {
+                    drawBendBackground(s, f, qualifying.has(intervalName) ? 'bend-correct-bg' : 'bend-incorrect-bg');
+                }
+            });
+
+            // Ensure note markers with labels remain visible
+            // (They were already drawn at round start)
+        } else if (mode === 'findMissing') {
             // Build the combined set of all shape notes
             const combined = new Set();
             currentScale.shapes.forEach(shape => {
@@ -1193,14 +1307,20 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.scores.incorrect.textContent = incorrect;
         elements.scores.missed.textContent = missed;
 
-        elements.promptArea.textContent = (incorrect === 0 && missed === 0)
-            ? `Perfect! You found all intervals for ${currentHiddenShapeName} of ${currentScale.name}!`
-            : `Here are your results for ${currentHiddenShapeName} of ${currentScale.name}. Check the fretboard.`;
+        if (mode === 'pentBend') {
+            elements.promptArea.textContent = (incorrect === 0 && missed === 0)
+                ? `Perfect! You found all bend targets in ${currentKey} Minor Pentatonic - ${currentHiddenShapeName}`
+                : `Results for bend targets in ${currentKey} Minor Pentatonic - ${currentHiddenShapeName}`;
+        } else {
+            elements.promptArea.textContent = (incorrect === 0 && missed === 0)
+                ? `Perfect! You found all intervals for ${currentHiddenShapeName} of ${currentScale.name}!`
+                : `Here are your results for ${currentHiddenShapeName} of ${currentScale.name}. Check the fretboard.`;
+        }
+
         elements.checkBtn.classList.add('hidden'); elements.clearBtn.classList.add('hidden'); elements.nextRoundBtn.classList.remove('hidden');
         [elements.keySelect, elements.scaleSelect, elements.modeSelect, elements.missingIntervalSelect].forEach(el => el.disabled = false);
         elements.startBtn.classList.remove('hidden');
 
-        // Clear guessedNotes so next round starts fresh (we keep drawn results on the board)
         guessedNotes.clear();
     }
 
