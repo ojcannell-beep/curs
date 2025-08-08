@@ -301,6 +301,34 @@ document.addEventListener('DOMContentLoaded', () => {
             colors: { 'R': '#9333ea', '2': '#0891b2', '3': '#059669', '4': '#1d4ed8', '5': '#db2777', '6': '#e11d48', '♭7': '#ca8a04' },
             shapes: []
         },
+        phrygian: {
+            name: 'Phrygian',
+            intervals: [0, 1, 3, 5, 7, 8, 10],
+            intervalNames: { 0: 'R', 1: '♭2', 3: '♭3', 5: '4', 7: '5', 8: '♭6', 10: '♭7' },
+            colors: { 'R': '#9333ea', '♭2': '#dc2626', '♭3': '#1d4ed8', '4': '#059669', '5': '#db2777', '♭6': '#ca8a04', '♭7': '#e11d48' },
+            shapes: []
+        },
+        melodicMinor: {
+            name: 'Melodic Minor',
+            intervals: [0, 2, 3, 5, 7, 9, 11],
+            intervalNames: { 0: 'R', 2: '2', 3: '♭3', 5: '4', 7: '5', 9: '6', 11: '7' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '♭3': '#1d4ed8', '4': '#059669', '5': '#db2777', '6': '#e11d48', '7': '#ca8a04' },
+            shapes: []
+        },
+        symmetricalDiminished: {
+            name: 'Symmetrical Diminished',
+            intervals: [0, 2, 3, 5, 6, 8, 9, 11],
+            intervalNames: { 0: 'R', 2: '2', 3: '♭3', 5: '4', 6: '♭5', 8: '♭6', 9: '6', 11: '7' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '♭3': '#1d4ed8', '4': '#059669', '♭5': '#dc2626', '♭6': '#ca8a04', '6': '#e11d48', '7': '#f59e0b' },
+            shapes: []
+        },
+        harmonicMinor: {
+            name: 'Harmonic Minor',
+            intervals: [0, 2, 3, 5, 7, 8, 11],
+            intervalNames: { 0: 'R', 2: '2', 3: '♭3', 5: '4', 7: '5', 8: '♭6', 11: '7' },
+            colors: { 'R': '#9333ea', '2': '#0891b2', '♭3': '#1d4ed8', '4': '#059669', '5': '#db2777', '♭6': '#ca8a04', '7': '#e11d48' },
+            shapes: []
+        },
         major: {
             name: 'Major',
             intervals: [0, 2, 4, 5, 7, 9, 11],
@@ -433,6 +461,10 @@ document.addEventListener('DOMContentLoaded', () => {
         buildFretboardMap();
         generateDorianShapes();
         generateMixolydianShapes();
+        generatePhrygianShapes();
+        generateMelodicMinorShapes();
+        generateSymmetricalDiminishedShapes();
+        generateHarmonicMinorShapes();
         //generateNaturalMinorBluesShapes();
         populateSelectors();
         populateIntervalSelector();
@@ -556,6 +588,202 @@ document.addEventListener('DOMContentLoaded', () => {
                 mixoShape.frets.push({ s, f: chosen });
             }
             return mixoShape;
+        });
+    }
+
+    function generatePhrygianShapes() {
+        const phrygianNotesInA = SCALES.phrygian.intervals.map(i => ALL_NOTES[i]);
+        SCALES.phrygian.shapes = PENTATONIC_SHAPES_IN_A.map(pentaShape => {
+            const phrygianShape = { id: pentaShape.id, name: pentaShape.name, frets: [] };
+            for (let s = 0; s < NUM_STRINGS; s++) {
+                const pentaForString = pentaShape.frets.find(ff => ff.s === s);
+                if (!pentaForString || !pentaForString.f || pentaForString.f.length === 0) continue;
+                const anchors = [...pentaForString.f].sort((a, b) => a - b);
+                const anchorCenter = Math.round((anchors[0] + anchors[anchors.length - 1]) / 2);
+
+                let windowMin = Math.max(0, anchorCenter - 2);
+                let windowMax = Math.min(NUM_FRETS, windowMin + 4);
+                if (windowMax - windowMin < 4) windowMin = Math.max(0, windowMax - 4);
+
+                const candidates = [];
+                for (let f = windowMin; f <= windowMax; f++) {
+                    if (phrygianNotesInA.includes(fretboardMap[s][f])) candidates.push(f);
+                }
+                if (candidates.length === 0) continue;
+
+                let chosen = [...candidates];
+                if (chosen.length > 3) {
+                    chosen.sort((a, b) => Math.abs(a - anchorCenter) - Math.abs(b - anchorCenter) || a - b);
+                    chosen = chosen.slice(0, 3).sort((a, b) => a - b);
+                }
+                if (chosen.length === 3 && chosen[2] - chosen[0] > 4) {
+                    const pairs = [
+                        [chosen[0], chosen[1]],
+                        [chosen[1], chosen[2]],
+                        [chosen[0], chosen[2]],
+                    ].filter(p => p[1] - p[0] <= 4);
+                    if (pairs.length > 0) {
+                        pairs.sort((p, q) => {
+                            const pd = Math.abs(((p[0] + p[1]) / 2) - anchorCenter);
+                            const qd = Math.abs(((q[0] + q[1]) / 2) - anchorCenter);
+                            if (pd !== qd) return pd - qd;
+                            return (p[1] - p[0]) - (q[1] - q[0]);
+                        });
+                        chosen = pairs[0];
+                    } else {
+                        chosen = [chosen[0], chosen[1]];
+                    }
+                }
+                phrygianShape.frets.push({ s, f: chosen });
+            }
+            return phrygianShape;
+        });
+    }
+
+    function generateMelodicMinorShapes() {
+        const melodicMinorNotesInA = SCALES.melodicMinor.intervals.map(i => ALL_NOTES[i]);
+        SCALES.melodicMinor.shapes = PENTATONIC_SHAPES_IN_A.map(pentaShape => {
+            const melodicShape = { id: pentaShape.id, name: pentaShape.name, frets: [] };
+            for (let s = 0; s < NUM_STRINGS; s++) {
+                const pentaForString = pentaShape.frets.find(ff => ff.s === s);
+                if (!pentaForString || !pentaForString.f || pentaForString.f.length === 0) continue;
+                const anchors = [...pentaForString.f].sort((a, b) => a - b);
+                const anchorCenter = Math.round((anchors[0] + anchors[anchors.length - 1]) / 2);
+
+                let windowMin = Math.max(0, anchorCenter - 2);
+                let windowMax = Math.min(NUM_FRETS, windowMin + 4);
+                if (windowMax - windowMin < 4) windowMin = Math.max(0, windowMax - 4);
+
+                const candidates = [];
+                for (let f = windowMin; f <= windowMax; f++) {
+                    if (melodicMinorNotesInA.includes(fretboardMap[s][f])) candidates.push(f);
+                }
+                if (candidates.length === 0) continue;
+
+                let chosen = [...candidates];
+                if (chosen.length > 3) {
+                    chosen.sort((a, b) => Math.abs(a - anchorCenter) - Math.abs(b - anchorCenter) || a - b);
+                    chosen = chosen.slice(0, 3).sort((a, b) => a - b);
+                }
+                if (chosen.length === 3 && chosen[2] - chosen[0] > 4) {
+                    const pairs = [
+                        [chosen[0], chosen[1]],
+                        [chosen[1], chosen[2]],
+                        [chosen[0], chosen[2]],
+                    ].filter(p => p[1] - p[0] <= 4);
+                    if (pairs.length > 0) {
+                        pairs.sort((p, q) => {
+                            const pd = Math.abs(((p[0] + p[1]) / 2) - anchorCenter);
+                            const qd = Math.abs(((q[0] + q[1]) / 2) - anchorCenter);
+                            if (pd !== qd) return pd - qd;
+                            return (p[1] - p[0]) - (q[1] - q[0]);
+                        });
+                        chosen = pairs[0];
+                    } else {
+                        chosen = [chosen[0], chosen[1]];
+                    }
+                }
+                melodicShape.frets.push({ s, f: chosen });
+            }
+            return melodicShape;
+        });
+    }
+
+    function generateSymmetricalDiminishedShapes() {
+        const symDimNotesInA = SCALES.symmetricalDiminished.intervals.map(i => ALL_NOTES[i]);
+        SCALES.symmetricalDiminished.shapes = PENTATONIC_SHAPES_IN_A.map(pentaShape => {
+            const symDimShape = { id: pentaShape.id, name: pentaShape.name, frets: [] };
+            for (let s = 0; s < NUM_STRINGS; s++) {
+                const pentaForString = pentaShape.frets.find(ff => ff.s === s);
+                if (!pentaForString || !pentaForString.f || pentaForString.f.length === 0) continue;
+                const anchors = [...pentaForString.f].sort((a, b) => a - b);
+                const anchorCenter = Math.round((anchors[0] + anchors[anchors.length - 1]) / 2);
+
+                let windowMin = Math.max(0, anchorCenter - 2);
+                let windowMax = Math.min(NUM_FRETS, windowMin + 4);
+                if (windowMax - windowMin < 4) windowMin = Math.max(0, windowMax - 4);
+
+                const candidates = [];
+                for (let f = windowMin; f <= windowMax; f++) {
+                    if (symDimNotesInA.includes(fretboardMap[s][f])) candidates.push(f);
+                }
+                if (candidates.length === 0) continue;
+
+                let chosen = [...candidates];
+                if (chosen.length > 3) {
+                    chosen.sort((a, b) => Math.abs(a - anchorCenter) - Math.abs(b - anchorCenter) || a - b);
+                    chosen = chosen.slice(0, 3).sort((a, b) => a - b);
+                }
+                if (chosen.length === 3 && chosen[2] - chosen[0] > 4) {
+                    const pairs = [
+                        [chosen[0], chosen[1]],
+                        [chosen[1], chosen[2]],
+                        [chosen[0], chosen[2]],
+                    ].filter(p => p[1] - p[0] <= 4);
+                    if (pairs.length > 0) {
+                        pairs.sort((p, q) => {
+                            const pd = Math.abs(((p[0] + p[1]) / 2) - anchorCenter);
+                            const qd = Math.abs(((q[0] + q[1]) / 2) - anchorCenter);
+                            if (pd !== qd) return pd - qd;
+                            return (p[1] - p[0]) - (q[1] - q[0]);
+                        });
+                        chosen = pairs[0];
+                    } else {
+                        chosen = [chosen[0], chosen[1]];
+                    }
+                }
+                symDimShape.frets.push({ s, f: chosen });
+            }
+            return symDimShape;
+        });
+    }
+
+    function generateHarmonicMinorShapes() {
+        const harmonicMinorNotesInA = SCALES.harmonicMinor.intervals.map(i => ALL_NOTES[i]);
+        SCALES.harmonicMinor.shapes = PENTATONIC_SHAPES_IN_A.map(pentaShape => {
+            const harmonicShape = { id: pentaShape.id, name: pentaShape.name, frets: [] };
+            for (let s = 0; s < NUM_STRINGS; s++) {
+                const pentaForString = pentaShape.frets.find(ff => ff.s === s);
+                if (!pentaForString || !pentaForString.f || pentaForString.f.length === 0) continue;
+                const anchors = [...pentaForString.f].sort((a, b) => a - b);
+                const anchorCenter = Math.round((anchors[0] + anchors[anchors.length - 1]) / 2);
+
+                let windowMin = Math.max(0, anchorCenter - 2);
+                let windowMax = Math.min(NUM_FRETS, windowMin + 4);
+                if (windowMax - windowMin < 4) windowMin = Math.max(0, windowMax - 4);
+
+                const candidates = [];
+                for (let f = windowMin; f <= windowMax; f++) {
+                    if (harmonicMinorNotesInA.includes(fretboardMap[s][f])) candidates.push(f);
+                }
+                if (candidates.length === 0) continue;
+
+                let chosen = [...candidates];
+                if (chosen.length > 3) {
+                    chosen.sort((a, b) => Math.abs(a - anchorCenter) - Math.abs(b - anchorCenter) || a - b);
+                    chosen = chosen.slice(0, 3).sort((a, b) => a - b);
+                }
+                if (chosen.length === 3 && chosen[2] - chosen[0] > 4) {
+                    const pairs = [
+                        [chosen[0], chosen[1]],
+                        [chosen[1], chosen[2]],
+                        [chosen[0], chosen[2]],
+                    ].filter(p => p[1] - p[0] <= 4);
+                    if (pairs.length > 0) {
+                        pairs.sort((p, q) => {
+                            const pd = Math.abs(((p[0] + p[1]) / 2) - anchorCenter);
+                            const qd = Math.abs(((q[0] + q[1]) / 2) - anchorCenter);
+                            if (pd !== qd) return pd - qd;
+                            return (p[1] - p[0]) - (q[1] - q[0]);
+                        });
+                        chosen = pairs[0];
+                    } else {
+                        chosen = [chosen[0], chosen[1]];
+                    }
+                }
+                harmonicShape.frets.push({ s, f: chosen });
+            }
+            return harmonicShape;
         });
     }
 
