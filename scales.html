@@ -1238,18 +1238,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (qualifying.has(intervalName) && !bendSelected.has(noteKey)) missed++;
             });
 
-            // Visual feedback: set selected backgrounds to white if correct, red if incorrect
+            // Visual feedback:
+            // 1) Clear any previous bend backgrounds
             elements.board.querySelectorAll('.bend-bg').forEach(bg => bg.remove());
+            // 2) Draw pink background for ALL correct bend positions in this shape
             notesForHiddenPosition.forEach(noteKey => {
                 const [s, f] = noteKey.split(',').map(Number);
                 const intervalName = getIntervalName(fretboardMap[s][f], currentKey);
-                if (bendSelected.has(noteKey)) {
-                    drawBendBackground(s, f, qualifying.has(intervalName) ? 'bend-correct-bg' : 'bend-incorrect-bg');
+                if (qualifying.has(intervalName)) {
+                    drawBendBackground(s, f, 'bend-correct-bg');
+                }
+            });
+            // 3) Overlay red background for any selected incorrect locations
+            bendSelected.forEach(noteKey => {
+                const [s, f] = noteKey.split(',').map(Number);
+                const intervalName = getIntervalName(fretboardMap[s][f], currentKey);
+                if (!qualifying.has(intervalName)) {
+                    drawBendBackground(s, f, 'bend-incorrect-bg');
                 }
             });
 
             // Ensure note markers with labels remain visible
-            // (They were already drawn at round start)
         } else if (mode === 'findMissing') {
             // Build the combined set of all shape notes
             const combined = new Set();
@@ -1382,6 +1391,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawMarker(s, f, { neutral: true, showText: false });
                 }
             });
+        } else if (elements.modeSelect.value === 'pentBend') {
+            // Do nothing: in bend mode, backgrounds are only drawn at check time
+            // and a new round will draw the colored interval markers fresh.
         } else {
             notesForHiddenPosition.forEach(noteKey => {
                 const [s, f] = noteKey.split(',').map(Number);
