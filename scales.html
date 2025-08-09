@@ -68,7 +68,7 @@ add the Mixolydian in the same way as the otehr scales have been implemented, wi
       box-sizing: border-box;
     }
     .bend-select-bg { background-color: #d1d5db; /* gray-300 */ }
-    .bend-correct-bg { background-color: #ffffff; border-color: rgba(0,0,0,0.25); }
+    .bend-correct-bg { background-color: #f9a8d4; /* pink-300 */ border-color: #f472b6; }
     .bend-incorrect-bg { background-color: #fee2e2; /* red-100 */ border-color: #fecaca; }
 
     input[type="color"] { -webkit-appearance: none; width: 40px; height: 40px; border: none; cursor: pointer; }
@@ -935,7 +935,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function clearAllMarkers() { elements.board.querySelectorAll('.note-marker').forEach(n => n.remove()); }
+    function clearAllMarkers() {
+        elements.board.querySelectorAll('.note-marker').forEach(n => n.remove());
+        elements.board.querySelectorAll('.bend-bg').forEach(n => n.remove());
+        if (typeof bendSelected !== 'undefined' && bendSelected.clear) bendSelected.clear();
+    }
 
     function getIntervalName(noteName, rootNoteName) {
         const rootIndex = ALL_NOTES.indexOf(rootNoteName);
